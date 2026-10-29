@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CUCEI Conecta · Asesorías entre estudiantes</title>
+  <meta name="description" content="Plataforma para que estudiantes de CUCEI hagan preguntas y pidan asesorías a otros estudiantes. Proyecto alineado al ODS 4: Educación de calidad.">
+  <meta name="theme-color" content="#1f3a8a">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231f3a8a'/%3E%3Ctext x='32' y='42' font-family='Arial' font-size='26' font-weight='700' text-anchor='middle' fill='%23fbbf24'%3ECC%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip" href="#app">Saltar al contenido</a>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="#/inicio" aria-label="CUCEI Conecta, inicio">
+        <span class="logo" aria-hidden="true">CC</span>
+        <span class="brand-text">CUCEI <b>Conecta</b></span>
+      </a>
+      <button class="menu-btn" aria-label="Abrir menú" aria-expanded="false" aria-controls="nav" data-action="toggle-menu">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="nav" id="nav" aria-label="Principal">
+        <a href="#/inicio" data-nav="inicio">Inicio</a>
+        <a href="#/preguntas" data-nav="preguntas">Preguntas</a>
+        <a href="#/asesorias" data-nav="asesorias">Asesorías</a>
+        <a href="#/asesores" data-nav="asesores">Asesores</a>
+        <a href="#/impacto" data-nav="impacto">Impacto</a>
+        <a href="#/seguridad" data-nav="seguridad">Seguridad</a>
+        <a href="#/acerca" data-nav="acerca">Acerca</a>
+      </nav>
+      <button class="user-chip" id="userChip" data-action="profile">Entrar</button>
+    </div>
+  </header>
+
+  <main id="app" class="wrap" tabindex="-1"></main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <p><b>CUCEI Conecta</b> · Proyecto estudiantil de fin de semestre alineado al
+        <a href="#/acerca">ODS 4: Educación de calidad</a>.</p>
+      <p class="muted">Prototipo académico, no es un sitio oficial de la Universidad de Guadalajara.
+        · <a href="#/privacidad">Aviso de privacidad</a> · <a href="#/seguridad">Seguridad digital</a></p>
+    </div>
+  </footer>
+
+  <dialog id="modal" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="modalTitle"></h2>
+        <button type="button" class="icon-btn" data-action="close-modal" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="modalForm"></form>
+    </div>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
