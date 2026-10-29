@@ -1,15 +1,6 @@
 /* ==========================================================
    CUCEI Conecta — datos base del prototipo
-   Edita TEAM con los nombres de tu equipo.
    ========================================================== */
-
-// 👉 Cambia estos datos por los de tu equipo
-const TEAM = [
-  { name: 'Integrante 1', role: 'Líder del proyecto' },
-  { name: 'Integrante 2', role: 'Diseño y contenido' },
-  { name: 'Integrante 3', role: 'Programación web' },
-  { name: 'Integrante 4', role: 'Investigación y encuestas' }
-];
 
 const SUBJECTS = [
   'Cálculo Diferencial',

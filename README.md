@@ -15,7 +15,7 @@ Proyecto de fin de semestre alineado al **ODS 4: Educación de calidad** (metas 
 | **Asesores** | Directorio de estudiantes asesores con materias, horario y calificación |
 | **Impacto** | Indicadores medibles (SMART) y exportación de datos a CSV/JSON |
 | **Seguridad** | Buenas prácticas de seguridad digital y qué hacer ante un ciberdelito |
-| **Acerca** | Problema, objetivos, ODS 4 y equipo |
+| **Acerca** | Problema, objetivos y ODS 4 |
 | **Aviso de privacidad** | Qué datos se usan y botón para borrarlos |
 
 ## Estructura
@@ -23,13 +23,9 @@ Proyecto de fin de semestre alineado al **ODS 4: Educación de calidad** (metas 
 ```
 index.html      ← página principal
 css/styles.css  ← diseño (se adapta a celular y modo oscuro)
-js/data.js      ← materias, carreras, datos de ejemplo y EQUIPO (edítalo)
+js/data.js      ← materias, carreras y datos de ejemplo
 js/app.js       ← funcionamiento de la página
 ```
-
-## Personalizar
-
-Abre `js/data.js` y cambia la lista `TEAM` con los nombres y roles de tu equipo.
 
 ## Publicar en GitHub Pages (sin instalar nada)
 

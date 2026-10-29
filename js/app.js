@@ -843,17 +843,6 @@
             <li>Promover buenas prácticas de seguridad digital y protección de datos personales.</li>
           </ul>
         </section>
-
-        <section class="section">
-          <h2>Equipo</h2>
-          <div class="team">
-            ${TEAM.map((m) => `
-              <div class="card">
-                <span class="avatar" style="background:${colorFor(m.name)}">${esc(initials(m.name))}</span>
-                <div><b>${esc(m.name)}</b><div class="muted small">${esc(m.role)}</div></div>
-              </div>`).join('')}
-          </div>
-        </section>
       </div>`;
   }
 

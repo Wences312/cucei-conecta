@@ -324,8 +324,6 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, a:focus-visible, 
 .prose li { margin-bottom: .4em; }
 .tips { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
 .tip .ico { font-size: 1.6rem; display: block; margin-bottom: 6px; }
-.team { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-.team .card { display: flex; gap: 12px; align-items: center; }
 
 /* ---------- Modal y toast ---------- */
 dialog {
