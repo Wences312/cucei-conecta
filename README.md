@@ -23,9 +23,38 @@ Proyecto de fin de semestre alineado al **ODS 4: Educación de calidad** (metas 
 ```
 index.html      ← página principal
 css/styles.css  ← diseño (se adapta a celular y modo oscuro)
+js/config.js    ← ID de cliente de Google y dominio permitido (udg.mx)
 js/data.js      ← materias, carreras y datos de ejemplo
 js/app.js       ← funcionamiento de la página
 ```
+
+## Inicio de sesión con Google (solo correos UdeG)
+
+Las secciones Preguntas, Asesorías, Asesores e Impacto piden iniciar sesión con Google.
+Solo se aceptan correos que terminan en `udg.mx` (por ejemplo `@alumnos.udg.mx` y `@academicos.udg.mx`).
+Cualquier otra cuenta, como `@gmail.com`, se rechaza.
+
+### Obtener el ID de cliente (una sola vez, ~5 min)
+
+1. Entra a <https://console.cloud.google.com/> con tu cuenta de Google y crea un proyecto llamado `cucei-conecta`.
+2. Ve a **APIs y servicios → Pantalla de consentimiento de OAuth** (Google Auth Platform) → **Comenzar**:
+   - Nombre de la app: `CUCEI Conecta` · correo de asistencia: el tuyo
+   - Público: **Externo** · correo de contacto: el tuyo → acepta y **Crear**.
+3. En **Público** (Audience) haz clic en **Publicar app**. Así puede entrar cualquier cuenta y no solo los "usuarios de prueba".
+   Como la página solo pide nombre y correo, Google no exige verificación.
+4. En **Clientes** → **Crear cliente** → tipo **Aplicación web**. En **Orígenes autorizados de JavaScript** agrega:
+   - `https://wences312.github.io`
+   - `http://localhost:8765` (para pruebas en tu computadora)
+5. Copia el **ID de cliente**, que termina en `.apps.googleusercontent.com`, y pégalo en `js/config.js`:
+   ```js
+   googleClientId: '1234567890-abc123.apps.googleusercontent.com',
+   ```
+
+El ID de cliente **no es secreto**: está hecho para ir en la página. Nunca subas un *client secret*; esta página no lo necesita.
+
+> ⚠️ Si al entrar con tu cuenta `@alumnos.udg.mx` aparece **"Acceso bloqueado"**, significa que el administrador de Google de la UdeG restringe apps externas. En ese caso hay que pedir autorización a la universidad.
+
+> ℹ️ La validación del dominio se hace en el navegador. Para un sistema real habría que verificar el token también en un servidor (por ejemplo con Firebase Authentication).
 
 ## Publicar en GitHub Pages (sin instalar nada)
 
@@ -50,7 +79,8 @@ Siguiente paso para uso real entre muchos usuarios: conectar una base de datos e
 
 ## Calidad y seguridad
 
-- Sin contraseñas ni datos sensibles; solo alias, carrera y semestre, con consentimiento.
+- Inicio de sesión con Google restringido a correos institucionales `udg.mx`. La página nunca ve contraseñas.
+- El correo no se muestra a otros usuarios; solo se publican el alias, la carrera y el semestre, con consentimiento.
 - Todo el texto que escriben los usuarios se escapa (protección contra inyección de código / XSS).
 - Botón para reportar contenido y para borrar los datos propios.
 - Diseño accesible (navegable con teclado) y adaptable a celular.

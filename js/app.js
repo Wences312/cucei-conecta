@@ -70,14 +70,19 @@
   let db = load();
 
   function load() {
+    let data = null;
     try {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) {
-        const data = JSON.parse(raw);
-        if (data && data.version === SEED.version) return data;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.version === SEED.version) data = parsed;
       }
     } catch (e) { /* sin acceso a localStorage: se usan los datos de ejemplo */ }
-    return clone(SEED);
+    data = data || clone(SEED);
+    data.accounts = data.accounts || {};
+    // Los perfiles creados antes del inicio de sesión con Google no tienen correo
+    if (data.user && !data.user.email) data.user = null;
+    return data;
   }
 
   function save() {
@@ -97,10 +102,11 @@
     if (modal.open) modal.close();
     modalCfg = { ...cfg, token: uid() };
     modalTitle.textContent = cfg.title;
+    const hasSubmit = cfg.submitLabel !== null;
     modalForm.innerHTML = cfg.body + `
       <div class="modal-actions">
-        <button type="button" class="btn ghost" data-action="close-modal">Cancelar</button>
-        <button type="submit" class="btn primary">${esc(cfg.submitLabel || 'Guardar')}</button>
+        <button type="button" class="btn ghost" data-action="close-modal">${hasSubmit ? 'Cancelar' : 'Cerrar'}</button>
+        ${hasSubmit ? `<button type="submit" class="btn primary">${esc(cfg.submitLabel || 'Guardar')}</button>` : ''}
       </div>`;
     modal.showModal();
     const first = modalForm.querySelector('input:not([type=hidden]):not([type=radio]), select, textarea');
@@ -114,7 +120,7 @@
 
   modalForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (!modalCfg) return;
+    if (!modalCfg || !modalCfg.onSubmit) return;
     const cfg = modalCfg;
     const result = cfg.onSubmit(new FormData(modalForm));
     if (result === false) return;
@@ -124,30 +130,155 @@
 
   modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
+  /* ---------- Inicio de sesión con Google (solo cuentas UdeG) ---------- */
+  let googleReady = false;
+  let afterLogin = null;
+
+  const googleLoaded = () => !!(window.google && google.accounts && google.accounts.id);
+
+  // Acepta el dominio permitido y sus subdominios: udg.mx, alumnos.udg.mx, academicos.udg.mx…
+  function emailAllowed(email) {
+    const domain = (String(email).split('@')[1] || '').toLowerCase();
+    const allowed = CONFIG.allowedDomain.toLowerCase();
+    return domain === allowed || domain.endsWith(`.${allowed}`);
+  }
+
+  // Lee los datos (nombre, correo) del token que entrega Google
+  function decodeJwt(token) {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(Array.from(atob(part),
+      (c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`).join(''));
+    return JSON.parse(json);
+  }
+
+  function initGoogle() {
+    if (googleReady) return;
+    google.accounts.id.initialize({
+      client_id: CONFIG.googleClientId,
+      callback: onGoogleCredential,
+      auto_select: false,
+      ux_mode: 'popup',
+      context: 'signin'
+    });
+    googleReady = true;
+  }
+
+  function loadGoogle(done) {
+    if (!CONFIG.googleClientId) return done(false);
+    if (googleLoaded()) { initGoogle(); return done(true); }
+    let script = document.getElementById('gsi');
+    if (!script) {
+      script = document.createElement('script');
+      script.id = 'gsi';
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      document.head.appendChild(script);
+    }
+    script.addEventListener('load', () => { initGoogle(); done(true); }, { once: true });
+    script.addEventListener('error', () => done(false), { once: true });
+  }
+
+  function loginError(msg) {
+    const box = document.getElementById('loginError');
+    if (box) { box.textContent = msg; box.hidden = false; } else toast(msg);
+  }
+
+  function onGoogleCredential(response) {
+    let info;
+    try { info = decodeJwt(response.credential); } catch (e) {
+      return loginError('No se pudo leer la respuesta de Google. Intenta de nuevo.');
+    }
+    if (!info.email || !info.email_verified || !emailAllowed(info.email)) {
+      if (googleLoaded()) google.accounts.id.disableAutoSelect();
+      return loginError(`Solo se permiten correos institucionales de la UdeG (que terminan en ${CONFIG.allowedDomain}). Entraste con ${info.email || 'otra cuenta'}.`);
+    }
+    const email = info.email.toLowerCase();
+    const then = afterLogin;
+    afterLogin = null;
+    const saved = db.accounts[email];
+    if (saved) {
+      db.user = saved;
+      save();
+      updateChip();
+      closeModal();
+      toast(`¡Hola de nuevo, ${saved.name}!`);
+      render();
+      if (then) then();
+      return;
+    }
+    const first = (info.given_name || info.name || email.split('@')[0]).split(' ')[0];
+    const initial = info.family_name ? ` ${info.family_name[0]}.` : '';
+    openProfile(then, { email, name: first + initial });
+  }
+
+  function openLogin(after) {
+    afterLogin = typeof after === 'function' ? after : null;
+    openModal({
+      title: 'Inicia sesión',
+      submitLabel: null,
+      body: `
+        <p>Para participar entra con tu <b>correo institucional de la UdeG</b>, por ejemplo <code>nombre@alumnos.udg.mx</code>.</p>
+        <div id="loginError" class="notice" hidden></div>
+        <div id="googleBtn" class="google-btn"><span class="muted small">Cargando Google…</span></div>
+        <p class="muted small">🔒 Google verifica tu identidad: CUCEI Conecta nunca ve tu contraseña.</p>`
+    });
+    loadGoogle((ok) => {
+      const box = document.getElementById('googleBtn');
+      if (!box) return;
+      if (!ok) {
+        box.innerHTML = CONFIG.googleClientId
+          ? '<div class="notice">No se pudo cargar Google. Revisa tu conexión a internet.</div>'
+          : '<div class="notice">Falta configurar el inicio de sesión: pega tu ID de cliente de Google en <code>js/config.js</code> (los pasos están en el README).</div>';
+        return;
+      }
+      box.innerHTML = '';
+      google.accounts.id.renderButton(box, {
+        theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'pill', locale: 'es', width: 280
+      });
+    });
+  }
+
+  function logout() {
+    db.user = null;
+    save();
+    if (googleLoaded()) google.accounts.id.disableAutoSelect();
+    closeModal();
+    updateChip();
+    toast('Sesión cerrada');
+    render();
+  }
+
   /* ---------- Perfil ---------- */
   function updateChip() {
     const chip = document.getElementById('userChip');
-    chip.textContent = db.user ? `👤 ${db.user.name}` : 'Entrar';
-    chip.title = db.user ? 'Editar tu perfil' : 'Crea tu perfil para participar';
+    chip.textContent = db.user ? `👤 ${db.user.name}` : 'Iniciar sesión';
+    chip.title = db.user ? 'Tu perfil' : 'Entra con tu correo institucional';
   }
 
   function requireUser(then) {
     if (db.user) return then();
-    openProfile(then);
+    openLogin(then);
   }
 
-  function openProfile(after) {
-    const u = db.user || {};
+  // account viene de Google cuando es la primera vez que la persona entra
+  function openProfile(after, account) {
+    const u = account || db.user;
+    if (!u) return openLogin(after);
+    const isNew = !!account;
     const sem = Array.from({ length: 12 }, (_, i) => String(i + 1));
     openModal({
-      title: db.user ? 'Tu perfil' : 'Antes de participar',
-      submitLabel: db.user ? 'Guardar cambios' : 'Comenzar',
+      title: isNew ? '¡Ya casi! Completa tu perfil' : 'Tu perfil',
+      submitLabel: isNew ? 'Comenzar' : 'Guardar cambios',
       body: `
-        ${db.user ? '' : '<p class="muted">Solo necesitamos un nombre o alias para mostrar en tus preguntas y asesorías. <b>No pedimos contraseñas.</b></p>'}
+        <div class="field">
+          <span class="label">Cuenta</span>
+          <span>✉️ ${esc(u.email)}</span>
+          <span class="hint">Tu correo no se muestra a otros estudiantes.</span>
+        </div>
         <div class="field">
           <label for="pf-name">Nombre o alias</label>
           <input id="pf-name" name="name" required minlength="2" maxlength="40" value="${esc(u.name)}" placeholder="Ej. Wences R.">
-          <span class="hint">Evita poner tu nombre completo o tu código de estudiante.</span>
+          <span class="hint">Así te verán los demás. Evita poner tu nombre completo o tu código de estudiante.</span>
         </div>
         <div class="row">
           <div class="field">
@@ -160,16 +291,25 @@
           </div>
         </div>
         <label class="check">
-          <input type="checkbox" name="consent" required ${db.user ? 'checked' : ''}>
+          <input type="checkbox" name="consent" required ${isNew ? '' : 'checked'}>
           <span>Leí y acepto el <a href="#/privacidad" target="_blank">aviso de privacidad</a> y me comprometo a participar con respeto.</span>
-        </label>`,
+        </label>
+        ${isNew ? '' : '<button type="button" class="btn sm danger" data-action="logout" style="margin-top:14px">Cerrar sesión</button>'}`,
       onSubmit(fd) {
         const name = fd.get('name').trim();
         if (name.length < 2) { toast('Escribe un nombre válido'); return false; }
-        db.user = { name, carrera: fd.get('carrera'), semestre: Number(fd.get('semestre')), consentAt: Date.now() };
+        const user = {
+          name,
+          email: u.email,
+          carrera: fd.get('carrera'),
+          semestre: Number(fd.get('semestre')),
+          consentAt: u.consentAt || Date.now()
+        };
+        db.user = user;
+        db.accounts[u.email] = user;
         save();
         updateChip();
-        toast(`¡Hola, ${name}!`);
+        toast(isNew ? `¡Bienvenido(a), ${name}!` : 'Perfil actualizado');
         render();
         if (typeof after === 'function') after();
       }
@@ -504,7 +644,7 @@
       <section class="section">
         <h2>¿Cómo funciona?</h2>
         <div class="steps">
-          <div class="card step"><h3>Crea tu perfil</h3><p class="muted">Solo un alias, tu carrera y semestre. Sin contraseñas ni datos sensibles.</p></div>
+          <div class="card step"><h3>Entra con tu cuenta UdeG</h3><p class="muted">Inicia sesión con tu correo institucional. Google verifica que eres de la comunidad y nunca vemos tu contraseña.</p></div>
           <div class="card step"><h3>Pregunta o agenda</h3><p class="muted">Publica tu duda en el foro o solicita una asesoría por materia, fecha y lugar.</p></div>
           <div class="card step"><h3>Aprende y califica</h3><p class="muted">Marca la mejor respuesta y califica a tu asesor para que otros encuentren ayuda de calidad.</p></div>
         </div>
@@ -777,7 +917,7 @@
 
   function viewSecurity() {
     const tips = [
-      ['🔑', 'Nunca compartas tus contraseñas', 'Ningún asesor, compañero o "soporte" necesita tu contraseña de SIIAU, correo o redes. CUCEI Conecta jamás te la pedirá.'],
+      ['🔑', 'Nunca compartas tus contraseñas', 'Ningún asesor, compañero o "soporte" necesita tu contraseña de SIIAU, correo o redes. En CUCEI Conecta el inicio de sesión lo hace directamente Google: nosotros nunca vemos tu contraseña.'],
       ['🎣', 'Cuidado con el phishing', 'Desconfía de enlaces que prometen "exámenes resueltos" o "calificaciones". Revisa la dirección antes de iniciar sesión en cualquier sitio.'],
       ['🪪', 'Protege tus datos personales', 'No publiques tu teléfono, domicilio, código de estudiante ni fotos de tu credencial. Usa un alias.'],
       ['📍', 'Asesorías en lugares seguros', 'Para sesiones presenciales elige espacios públicos del campus como la biblioteca. En línea, usa tu cuenta institucional.'],
@@ -853,10 +993,11 @@
         <p class="muted">Prototipo académico · Última actualización: octubre de 2026</p>
         <h2>¿Qué datos usamos?</h2>
         <ul>
+          <li>Tu nombre y correo institucional, que Google nos comparte cuando inicias sesión. El correo solo sirve para comprobar que perteneces a la UdeG y <b>no se muestra</b> a otros usuarios.</li>
           <li>El nombre o alias que tú eliges, tu carrera y semestre.</li>
           <li>Las preguntas, respuestas, solicitudes de asesoría y calificaciones que publicas.</li>
         </ul>
-        <p><b>No</b> solicitamos contraseñas, teléfono, domicilio, código de estudiante ni datos sensibles.</p>
+        <p><b>No</b> recibimos tu contraseña (el inicio de sesión lo hace Google) ni pedimos teléfono, domicilio, código de estudiante o datos sensibles.</p>
         <h2>¿Para qué?</h2>
         <p>Únicamente para mostrar tu participación dentro de la plataforma y calcular indicadores generales del proyecto (por ejemplo, porcentaje de preguntas respondidas). Los resultados se presentan de forma agregada, sin identificar a nadie.</p>
         <h2>¿Dónde se guardan?</h2>
@@ -886,12 +1027,27 @@
     impacto: 'Impacto', seguridad: 'Seguridad digital', acerca: 'Acerca', privacidad: 'Aviso de privacidad'
   };
 
+  // Secciones que solo ve la comunidad UdeG con sesión iniciada
+  const PROTECTED = new Set(['preguntas', 'pregunta', 'asesorias', 'asesores', 'impacto']);
+
+  function viewLoginGate() {
+    app.innerHTML = `
+      <section class="card gate">
+        <span class="logo" aria-hidden="true">CC</span>
+        <h1>Inicia sesión para continuar</h1>
+        <p class="muted">Esta sección es solo para la comunidad de la Universidad de Guadalajara.
+          Entra con tu correo institucional <b>@alumnos.udg.mx</b> o <b>@academicos.udg.mx</b>.</p>
+        <button class="btn primary" data-action="login">Iniciar sesión con Google</button>
+      </section>`;
+  }
+
   function $(sel) { return app.querySelector(sel); }
 
   function render() {
     const [name, param] = location.hash.replace(/^#\/?/, '').split('/');
     const route = routes[name] ? name : 'inicio';
-    routes[route](param && decodeURIComponent(param));
+    if (PROTECTED.has(route) && !db.user) viewLoginGate();
+    else routes[route](param && decodeURIComponent(param));
     document.title = `${titles[route]} · CUCEI Conecta`;
     const active = route === 'pregunta' ? 'preguntas' : route;
     document.querySelectorAll('.nav a').forEach((a) => a.classList.toggle('active', a.dataset.nav === active));
@@ -936,7 +1092,9 @@
       el.setAttribute('aria-expanded', String(open));
     },
     'close-modal': closeModal,
-    profile: () => openProfile(),
+    profile: () => (db.user ? openProfile() : openLogin()),
+    login: () => openLogin(),
+    logout,
     ask: openAsk,
     request: (el) => openRequest({ tutor: el.dataset.tutor, subject: el.dataset.subject }),
     'tutor-form': openTutorForm,
@@ -1005,15 +1163,17 @@
     'export-json'() { download('cucei-conecta-datos.json', JSON.stringify(db, null, 2), 'application/json'); },
     reset() {
       if (!confirm('Esto borrará todo lo registrado y volverá a los datos de ejemplo. ¿Continuar?')) return;
-      const user = db.user;
+      const { user, accounts } = db;
       db = clone(SEED);
       db.user = user;
+      db.accounts = accounts;
       save(); toast('Datos restablecidos'); render();
     },
     wipe() {
       if (!confirm('Se borrarán tu perfil y toda la información guardada en este navegador. ¿Continuar?')) return;
       try { localStorage.removeItem(STORE_KEY); } catch (e) { /* nada que borrar */ }
-      db = clone(SEED);
+      if (googleLoaded()) google.accounts.id.disableAutoSelect();
+      db = load();
       updateChip(); toast('Tus datos fueron eliminados'); location.hash = '#/inicio';
     }
   };
